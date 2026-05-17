@@ -42,7 +42,7 @@ class ScrcpySession private constructor(
 
         private const val DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar"
         private const val SERVER_ASSET       = "scrcpy-server"
-        private const val SCRCPY_VERSION     = "3.3.4"
+        private const val SCRCPY_VERSION     = "3.2"
 
         /**
          * Connect to a running [adb] session and start a scrcpy session.
