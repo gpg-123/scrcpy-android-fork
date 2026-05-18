@@ -165,7 +165,14 @@ class StreamActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 android.util.Log.e("StreamActivity", "TCP connection failed", e)
-                errorText.value   = e.message ?: "Unknown error"
+                val fullError = buildString {
+                    appendLine(e.message ?: "TCP connection error")
+                    appendLine()
+                    e.cause?.let { appendLine("Caused by: ${it.message}") }
+                    appendLine()
+                    e.stackTrace.take(5).forEach { appendLine("  at $it") }
+                }
+                errorText.value   = fullError
                 statusText.value  = "Failed"
                 isConnected.value = false
             }
@@ -220,10 +227,18 @@ class StreamActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 android.util.Log.e("StreamActivity", "USB connection failed", e)
-                errorText.value   = e.message ?: "USB connection error"
+                val fullError = buildString {
+                    appendLine(e.message ?: "USB connection error")
+                    appendLine()
+                    e.cause?.let { appendLine("Caused by: ${it.message}") }
+                    appendLine()
+                    e.stackTrace.take(5).forEach { appendLine("  at $it") }
+                }
+                errorText.value   = fullError
                 statusText.value  = "Failed"
                 isConnected.value = false
             }
+                
         }
     }
 
