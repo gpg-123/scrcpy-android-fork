@@ -55,9 +55,9 @@ class StreamActivity : ComponentActivity() {
     @Volatile private var surface: Surface? = null
 
     // ─── UI state ─────────────────────────────────────────────────────────────
-    private var statusText  = mutableStateOf("Connecting…")
-    private var errorText   = mutableStateOf<String?>(null)
-    private var isConnected = mutableStateOf(false)
+    private val statusText  = mutableStateOf("Connecting…")
+    private val errorText   = mutableStateOf<String?>(null)
+    private val isConnected = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -146,9 +146,13 @@ class StreamActivity : ComponentActivity() {
                 statusText.value  = "Streaming ${info.name}"
                 isConnected.value = true
 
+                val currentSurface = surface ?: run {
+                    errorText.value = "Surface not ready"
+                    isConnected.value = false
+                    return@launch
+                }
                 decodeJob = launch(Dispatchers.IO) {
-                    val s = surface ?: return@launch
-                    videoDecoder!!.start(s)
+                    videoDecoder!!.start(currentSurface)
                 }
 
                 if (sess.audioStream != null && info.audioCodec != 0) {
