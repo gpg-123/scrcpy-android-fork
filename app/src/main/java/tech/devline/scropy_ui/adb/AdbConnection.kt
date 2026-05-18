@@ -141,12 +141,14 @@ class AdbConnection private constructor(
                         val sig = AdbAuthHelper.sign(privKey, msg.data)
                         send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
                     } else if (!pubKeySent.getAndSet(true)) {
-                        // Signature rejected — send our public key once
+                        // Signature rejected — send public key, wait for user to tap Allow
                         Log.i(TAG, "Sending ADB public key — please tap Allow on the device")
                         send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_RSAPUBLICKEY, 0, pubKey)
                     } else {
-                        // Public key already sent, waiting for user to Accept
-                        Log.d(TAG, "Ignoring AUTH_TOKEN — waiting for user to Allow")
+                        // User tapped Allow — device sends a new AUTH_TOKEN, sign it
+                        Log.i(TAG, "Re-signing after user approved — sending signature")
+                        val sig = AdbAuthHelper.sign(privKey, msg.data)
+                        send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
                     }
                 }
                 else -> {
