@@ -163,21 +163,21 @@ class VideoDecoder(
     }
 
     private fun drainCodec(mc: MediaCodec) {
-        val info    = MediaCodec.BufferInfo()
-        val timeout = 0L   // non-blocking
-        while (true) {
-            val idx = mc.dequeueOutputBuffer(info, timeout)
-            when {
-                idx >= 0 -> {
-                    val render = (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0
-                    mc.releaseOutputBuffer(idx, render)
-                    if (render) framesDecoded++
-                }
-                idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    Log.d(TAG, "Output format: ${mc.outputFormat}")
-                }
-                else -> break
+    val info    = MediaCodec.BufferInfo()
+    while (true) {
+        // 用 10ms 超时让解码器有时间输出帧
+        val idx = mc.dequeueOutputBuffer(info, 10_000L)
+        when {
+            idx >= 0 -> {
+                val render = (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0
+                mc.releaseOutputBuffer(idx, render)
+                if (render) framesDecoded++
             }
+            idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                Log.d(TAG, "Output format: ${mc.outputFormat}")
+            }
+            idx == MediaCodec.INFO_TRY_AGAIN_LATER -> break
+            else -> break
         }
     }
 }
