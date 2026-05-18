@@ -95,7 +95,7 @@ class AdbConnection private constructor(
     }
 
     private fun waitConnected() {
-        if (!connectedLatch.await(30, TimeUnit.SECONDS))
+        if (!connectedLatch.await(60, TimeUnit.SECONDS))
             throw IOException("ADB auth timed out (re-pair needed?)")
     }
 
