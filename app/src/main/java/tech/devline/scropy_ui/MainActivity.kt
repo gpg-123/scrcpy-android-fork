@@ -343,7 +343,7 @@ class MainActivity : ComponentActivity() {
                         mgr.requestPermission(
                             device,
                             PendingIntent.getBroadcast(
-                                this, 0, Intent(ACTION_USB_PERMISSION),
+                                this, 0, Intent(ACTION_USB_PERMISSION).apply { `package` = packageName },
                                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
                             )
                         )
