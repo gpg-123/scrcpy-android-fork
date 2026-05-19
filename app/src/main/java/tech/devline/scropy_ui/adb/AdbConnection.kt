@@ -105,7 +105,8 @@ class AdbConnection private constructor(
         Log.d(TAG, "readLoop started")
         try {
             while (alive.get()) {
-                val msg = readMsg() ?: run {
+                val msg = readMsg()
+                if (msg == null) {
                     Log.e(TAG, "readMsg returned null — transport closed?")
                     break
                 }
