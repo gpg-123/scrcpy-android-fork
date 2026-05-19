@@ -102,14 +102,19 @@ class AdbConnection private constructor(
     // ─── Reader loop ────────────────────────────────────────────────────────
 
     private fun readLoop() {
+        Log.d(TAG, "readLoop started")
         try {
             while (alive.get()) {
-                val msg = readMsg() ?: break
+                val msg = readMsg() ?: run {
+                    Log.e(TAG, "readMsg returned null — transport closed?")
+                    break
+                }
                 dispatch(msg)
             }
         } catch (e: IOException) {
             if (alive.get()) Log.e(TAG, "ADB read error", e)
         } finally {
+            Log.d(TAG, "readLoop ended")
             alive.set(false)
             streams.values.forEach { it.onClose() }
         }
@@ -128,55 +133,50 @@ class AdbConnection private constructor(
     }
 
     private fun dispatch(msg: AdbProtocol.Msg) {
-        when (msg.cmd) {
-            // ── Connection / auth ────────────────────────────────────────
-            AdbProtocol.A_CNXN -> {
-                Log.i(TAG, "ADB connected: ${String(msg.data)}")
-                connectedLatch.countDown()
-            }
-            AdbProtocol.A_AUTH -> when (msg.arg0) {
-                AdbProtocol.ADB_AUTH_TOKEN -> {
-                    if (!signatureSent.getAndSet(true)) {
-                        // First AUTH_TOKEN — try signing with our key
-                        val sig = AdbAuthHelper.sign(privKey, msg.data)
-                        send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
-                    } else if (!pubKeySent.getAndSet(true)) {
-                        // Signature rejected — send public key, wait for user to tap Allow
-                        Log.i(TAG, "Sending ADB public key — please tap Allow on the device")
-                        send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_RSAPUBLICKEY, 0, pubKey)
-                    } else {
-                        // User tapped Allow — device sends a new AUTH_TOKEN, sign it
-                        Log.i(TAG, "Re-signing after user approved — sending signature")
-                        val sig = AdbAuthHelper.sign(privKey, msg.data)
-                        send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
-                    }
-                }
-                else -> {
-                    if (!pubKeySent.getAndSet(true)) {
-                        Log.i(TAG, "Sending ADB public key — please tap Allow on the device")
-                        send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_RSAPUBLICKEY, 0, pubKey)
-                    } else {
-                        Log.d(TAG, "Ignoring AUTH — waiting for user to Allow")
-                    }
-                }
-            }
-
-            // ── Stream events ────────────────────────────────────────────
-            AdbProtocol.A_OKAY -> {
-                val stream = streams[msg.arg1] ?: return
-                stream.remoteId = msg.arg0
-                stream.onOkay()
-            }
-            AdbProtocol.A_WRTE -> {
-                val stream = streams[msg.arg1] ?: return
-                stream.onData(msg.data)
-            }
-            AdbProtocol.A_CLSE -> {
-                streams.remove(msg.arg1)?.onClose()
-            }
-            else -> Log.w(TAG, "Unknown ADB cmd 0x${msg.cmd.toString(16)}")
+    Log.d(TAG, "dispatch: cmd=0x${msg.cmd.toString(16)} arg0=${msg.arg0} arg1=${msg.arg1} dataLen=${msg.data.size}")
+    when (msg.cmd) {
+        AdbProtocol.A_CNXN -> {
+            Log.i(TAG, "ADB connected: ${String(msg.data)}")
+            connectedLatch.countDown()
         }
+        AdbProtocol.A_AUTH -> when (msg.arg0) {
+            AdbProtocol.ADB_AUTH_TOKEN -> {
+                Log.i(TAG, "AUTH_TOKEN received, signatureSent=${signatureSent.get()} pubKeySent=${pubKeySent.get()}")
+                if (!signatureSent.getAndSet(true)) {
+                    Log.i(TAG, "Sending signature")
+                    val sig = AdbAuthHelper.sign(privKey, msg.data)
+                    send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
+                } else if (!pubKeySent.getAndSet(true)) {
+                    Log.i(TAG, "Sending ADB public key — please tap Allow on the device")
+                    send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_RSAPUBLICKEY, 0, pubKey)
+                } else {
+                    Log.i(TAG, "Re-signing after user approved")
+                    val sig = AdbAuthHelper.sign(privKey, msg.data)
+                    send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_SIGNATURE, 0, sig)
+                }
+            }
+            else -> {
+                Log.i(TAG, "AUTH arg0=${msg.arg0}, sending public key")
+                if (!pubKeySent.getAndSet(true)) {
+                    send(AdbProtocol.A_AUTH, AdbProtocol.ADB_AUTH_RSAPUBLICKEY, 0, pubKey)
+                }
+            }
+        }
+        AdbProtocol.A_OKAY -> {
+            val stream = streams[msg.arg1] ?: return
+            stream.remoteId = msg.arg0
+            stream.onOkay()
+        }
+        AdbProtocol.A_WRTE -> {
+            val stream = streams[msg.arg1] ?: return
+            stream.onData(msg.data)
+        }
+        AdbProtocol.A_CLSE -> {
+            streams.remove(msg.arg1)?.onClose()
+        }
+        else -> Log.w(TAG, "Unknown ADB cmd 0x${msg.cmd.toString(16)}")
     }
+}
 
     // ─── Public API ─────────────────────────────────────────────────────────
 
